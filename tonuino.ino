@@ -309,7 +309,7 @@ void setup() {
 
   preferences(READ);
 
-  Serial.println(F("init nfc"));
+  Serial.println(F("init RFID"));
   SPI.begin();
   mfrc522.PCD_Init();
   mfrc522.PCD_DumpVersionToSerial();
@@ -458,8 +458,8 @@ void loop() {
     if (readNfcTagStatus == 1) {
       // #############################################################################
       // # nfc tag has our magic cookie on it, use data from nfc tag to start playback
-      Serial.println("Magic cookie found");
       if (playback.currentTag.cookie == magicCookie) {
+        Serial.println("Magic cookie found");
         switchButtonConfiguration(PLAY);
         shutdownTimer(STOP);
 
@@ -902,16 +902,19 @@ void waitPlaybackToFinish(uint8_t red, uint8_t green, uint8_t blue, uint16_t sta
   uint64_t waitPlaybackToStartMillis = millis();
 
   delay(500);
+  // wait for playback to start
   while (digitalRead(mp3BusyPin)) {
-    if (millis() - waitPlaybackToStartMillis >= 10000) break;
+    if (millis() - waitPlaybackToStartMillis >= 1000) break;
 #if defined STATUSLED ^ defined STATUSLEDRGB
     statusLedUpdate(BLINK, red, green, blue, statusLedUpdateInterval);
 #endif
   }
+  // wait for playback to finish
   while (!digitalRead(mp3BusyPin)) {
 #if defined STATUSLED ^ defined STATUSLEDRGB
     statusLedUpdate(BLINK, red, green, blue, statusLedUpdateInterval);
 #endif
+    // check for messages
     mp3.loop();
     delay(10);
   }
