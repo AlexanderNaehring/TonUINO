@@ -1,38 +1,32 @@
 /*
   basic button actions:
   =====================
-
-  Button B0 (by default pin A0, middle button on the original TonUINO): play/pause
-  Button B1 (by default pin A1, right button on the original TonUINO): volume up
-  Button B2 (by default pin A2, left button on the original TonUINO): volume down
-  Button B3 (by default pin A3, optional): previous track
-  Button B4 (by default pin A4, optional): next track
-
-  additional button actions:
-  ==========================
+  B0: middle button / enter / play / pause
+  B1: right button / up / next
+  B2: left button / down / previous
 
   During idle:
   ------------
-  Hold B0 for 5 seconds - Enter parents menu
+  Hold B1 + B2 - Enter menu
 
   During playback:
   ----------------
+  Click B1: volume up
+  Click B2: volume down
   Hold B0 for 5 seconds - Reset progress to track 1 (story book mode)
   Hold B0 for 5 seconds - Single track repeat (all modes, except story book mode)
   Hold B1 for 2 seconds - Skip to the next track ((v)album, (v)party and story book mode)
   Hold B2 for 2 seconds - Skip to the previous track ((v)album, (v)party and story book mode)
 
-  During parents menu:
+  In menu:
   --------------------
   Click B0 - Confirm selection
   Click B1 - Next option
   Click B2 - Previous option
-  Click B3 - Jump 10 options backwards
-  Click B4 - Jump 10 options forward
   Double click B0 - Announce current option
-  Hold B0 for 2 seconds - Cancel parents menu or any submenu
-  Hold B1 for 2 seconds - Jump 10 options forward
-  Hold B2 for 2 seconds - Jump 10 options backwards
+  Hold B0 - Cancel parents menu or any submenu
+  Hold B1 - Jump 10 options forward
+  Hold B2 - Jump 10 options backwards
 
   During nfc tag setup mode:
   --------------------------
@@ -48,69 +42,7 @@
 
   During power up:
   ----------------
-
   Hold B0 + B1 + B2 - Erase all eeprom contents (resets stored progress and preferences)
-
-  ir remote:
-  ==========
-
-  If an ir receiver (like TSOP38238 or similar) is connected to pin 5, you can also use
-  an ir remote to remote control TonUINO. The remote needs at least seven buttons to be
-  able to support all functions. This feature can be enabled by uncommenting the
-  '#define IRREMOTE' below.
-
-  Down below you can hard code (multiple sets of) code mappings for remotes which will
-  always be recognized. In addition to these hard coded remotes, you can learn in one
-  additional remote using the parents menu, which is then stored in EEPROM.
-
-  There is one function, currently only available with the ir remote: Box lock.
-  When TonUINO is locked, the buttons on TonUINO as well as the nfc reader are disabled
-  until TonUINO is unlocked again. Playback continues while TonUINO is locked and
-  you are still able to control TonUINO using the ir remote (great for parents).
-
-  During idle:
-  ------------
-  center - toggle box lock
-  menu - enter parents menu
-
-  During playback:
-  ----------------
-  center - toggle box lock
-  play/pause - toggle playback
-  up / down - volume up / down
-  left / right - previous / next track ((v)album, (v)party and story book mode)
-  menu - reset progress to track 1 (story book mode)
-  menu - single track repeat (all modes, except story book mode)
-
-  During parents menu:
-  --------------------
-  center - announce current option
-  play/pause - confirm selection
-  up / down - next / previous option
-  left / right - jump 10 options backwards / forward
-  menu - cancel
-
-  During nfc tag setup mode:
-  --------------------------
-  center - announce current folder, mode or track number
-  play/pause - confirm selection
-  up / down - next / previous folder, mode or track
-  left / right - jump 10 folders or tracks backwards / forward
-  menu - cancel
-
-  pin code:
-  =========
-
-  The complete erase of the eeprom contents (hold vol-, play/pause, vol+ during startup)
-  as well as the parents menu can be secured with a pin code of variable length. It is
-  defined (and can be changed) in the configuration section below, the default pin code is:
-
-                     ===> play/pause, vol-, vol+, play/pause <===
-
-  Once the pin code entry is triggered, you have (by default) 10s to enter the pin code
-  before it times out. It repeats when entered incorrectly. See status led section
-  for information about visual feedback. This feature can be enabled by uncommenting
-  the '#define PINCODE' below.
 
   status led(s):
   ==============
@@ -238,7 +170,8 @@
 // #define POLOLUSWITCH
 
 // include required libraries
-#include <avr/sleep.h>
+#include <Arduino.h>
+#include <ESP.h>
 #include <SoftwareSerial.h>
 #include <SPI.h>
 #include <EEPROM.h>
@@ -288,9 +221,9 @@ enum {READ, WRITE, MIGRATE, RESET, RESET_PROGRESS};
 enum {OFF, SOLID, PULSE, BLINK, BURST2, BURST4, BURST8};
 
 // define general configuration constants
-const uint8_t mp3SerialRxPin = 2;                   // mp3 serial rx, wired to tx pin of DFPlayer Mini
-const uint8_t mp3SerialTxPin = 3;                   // mp3 serial tx, wired to rx pin of DFPlayer Mini
-const uint8_t mp3BusyPin = 4;                       // reports play state of DFPlayer Mini (LOW = playing)
+const uint8_t mp3SerialRxPin = D2;                  // mp3 serial rx, wired to tx pin of DFPlayer Mini
+const uint8_t mp3SerialTxPin = D1;                  // mp3 serial tx, wired to rx pin of DFPlayer Mini
+const uint8_t mp3BusyPin = D0;                      // reports play state of DFPlayer Mini (LOW = playing)
 #if defined IRREMOTE
 const uint8_t irReceiverPin = 5;                    // pin used for the ir receiver
 #endif
@@ -299,20 +232,24 @@ const uint8_t statusLedPin = 6;                     // pin used for vanilla stat
 const uint8_t statusLedCount = 1;                   // number of ws281x status led(s)
 const uint8_t statusLedMaxBrightness = 20;          // max brightness of ws281x status led(s) (in percent)
 #endif
-const uint8_t shutdownPin = 7;                      // pin used to shutdown the system
-const uint8_t nfcResetPin = 9;                      // used for spi communication to nfc module
-const uint8_t nfcSlaveSelectPin = 10;               // used for spi communication to nfc module
-const uint8_t button0Pin = A0;                      // middle button
-const uint8_t button1Pin = A1;                      // right button
-const uint8_t button2Pin = A2;                      // left button
+// const uint8_t shutdownPin = ;                    // pin used to shutdown the system
+const uint8_t nfcResetPin = D3;                     // used for spi communication to nfc module
+const uint8_t nfcSlaveSelectPin = D8;               // used for spi communication to nfc module
+const uint8_t button0Pin = D4;                      // middle button (Play/Pause)
+const uint8_t button1Pin = 1;                       // right button
+const uint8_t button2Pin = 3;                       // left button 3 = RX
+// Attention: on nodeMCU, not many GPIO are available
+// when using TX/RX for btn input, pins are pulled high and cannot be used for serial debug!
+// to prevent problems, do not use GPIO 1 (TX) for button input.
+
 #if defined FIVEBUTTONS
-const uint8_t button3Pin = A3;                      // optional 4th button
-const uint8_t button4Pin = A4;                      // optional 5th button
+const uint8_t button3Pin = ;                        // optional 4th button
+const uint8_t button4Pin = ;                        // optional 5th button
 #endif
-const uint16_t buttonClickDelay = 1000;             // time during which a button press is still a click (in milliseconds)
-const uint16_t buttonShortLongPressDelay = 2000;    // time after which a button press is considered a long press (in milliseconds)
+const uint16_t buttonClickDelay = 400;             // time during which a button press is still a click (in milliseconds)
+const uint16_t buttonShortLongPressDelay = 500;    // time after which a button press is considered a long press (in milliseconds)
 const uint16_t buttonLongLongPressDelay = 5000;     // longer long press delay for special cases, i.e. to trigger the parents menu (in milliseconds)
-const uint32_t debugConsoleSpeed = 9600;            // speed for the debug console
+const uint32_t debugConsoleSpeed = 115200;          // speed for the debug console
 
 // define magic cookie (by default 0x13 0x37 0xb3 0x47)
 const uint8_t magicCookieHex[4] = {0x13, 0x37, 0xb3, 0x47};
@@ -327,9 +264,9 @@ const uint64_t enterPinCodeTimeout = 10000;         // time to enter the pin cod
 
 // default values for preferences
 const uint8_t preferenceVersion = 1;
-const uint8_t mp3StartVolumeDefault = 15;
-const uint8_t mp3MaxVolumeDefault = 25;
-const uint8_t mp3MenuVolumeDefault = 15;
+const uint8_t mp3StartVolumeDefault = 5;
+const uint8_t mp3MaxVolumeDefault = 15;
+const uint8_t mp3MenuVolumeDefault = 10;
 const uint8_t mp3EqualizerDefault = 1;
 const uint8_t shutdownMinutesDefault = 10;
 const uint16_t irRemoteUserCodesDefault[7] = {};
@@ -441,6 +378,7 @@ void statusLedUpdateHal(uint8_t red, uint8_t green, uint8_t blue, int16_t bright
 class Mp3Notify {
   public:
     static void OnError(uint16_t returnValue) {
+      Serial.print(F("DFPlayer Error:"));
       switch (returnValue) {
         case DfMp3_Error_Busy: {
             Serial.print(F("busy"));
@@ -545,12 +483,15 @@ Vcc shutdownVoltage(shutdownVoltageCorrection);                               //
 
 void setup() {
   // things we need to do immediately on startup
-  pinMode(shutdownPin, OUTPUT);
+//  pinMode(shutdownPin, OUTPUT);
 #if defined POLOLUSWITCH
-  digitalWrite(shutdownPin, LOW);
+//  digitalWrite(shutdownPin, LOW);
 #else
-  digitalWrite(shutdownPin, HIGH);
+//  digitalWrite(shutdownPin, HIGH);
 #endif
+  
+  EEPROM.begin(sizeof(preferenceStruct));
+  
   magicCookie = (uint32_t)magicCookieHex[0] << 24;
   magicCookie += (uint32_t)magicCookieHex[1] << 16;
   magicCookie += (uint32_t)magicCookieHex[2] << 8;
@@ -581,23 +522,33 @@ void setup() {
   mfrc522.PCD_DumpVersionToSerial();
 
   Serial.println(F("init mp3"));
+  pinMode(mp3BusyPin, INPUT);
+  /*Serial.print(F("Wait for busy pin to get low."));
+  while(!digitalRead(mp3BusyPin)) {
+    delay(10);
+    Serial.print(F("."));
+  }*/
+  delay(1000);
+  Serial.println("");
+  Serial.println(F("mp3.begin"));
   mp3.begin();
+  Serial.println(F("mp3.reset"));
+  mp3.reset();  // todo check how to improve compatibility across different implementations of the DFPlayer chip (bad china copies have serial com problems when booted wrongly) 
   delay(2000);
-  Serial.print(F("   start "));
+
+  Serial.println(F("MP3 configuration:"));
+  Serial.print(F("    start volume: "));
   Serial.println(preference.mp3StartVolume);
   mp3.setVolume(playback.mp3CurrentVolume = preference.mp3StartVolume);
-  Serial.print(F("     max "));
+  Serial.print(F("      max volume: "));
   Serial.println(preference.mp3MaxVolume);
-  Serial.print(F("    menu "));
+  Serial.print(F("     menu volume: "));
   Serial.println(preference.mp3MenuVolume);
-  Serial.print(F("      eq "));
-  Serial.println(mp3EqualizerName[preference.mp3Equalizer]);
-  mp3.setEq((DfMp3_Eq)(preference.mp3Equalizer - 1));
-  Serial.print(F("   files "));
-  Serial.println(mp3.getTotalTrackCount(DfMp3_PlaySource_Sd));
-  pinMode(mp3BusyPin, INPUT);
+  // Serial.print(F("  equalizer mode: "));
+  // Serial.println(mp3EqualizerName[preference.mp3Equalizer]);
+  // mp3.setEq((DfMp3_Eq)(preference.mp3Equalizer - 1));
 
-  Serial.print(F("init"));
+  Serial.print(F("init buttons"));
   pinMode(button0Pin, INPUT_PULLUP);
   pinMode(button1Pin, INPUT_PULLUP);
   pinMode(button2Pin, INPUT_PULLUP);
@@ -616,7 +567,7 @@ void setup() {
   Serial.println(F(" buttons"));
   switchButtonConfiguration(INIT);
 
-  Serial.print(F("init "));
+  Serial.print(F("init shutdown: "));
   Serial.print(preference.shutdownMinutes);
   Serial.println(F("m timer"));
   shutdownTimer(START);
@@ -628,7 +579,7 @@ void setup() {
 
 #if defined STATUSLED ^ defined STATUSLEDRGB
 #if defined STATUSLED
-  Serial.println(F("init led"));
+  Serial.println(F("init LED"));
   pinMode(statusLedPin, OUTPUT);
 #endif
 #if defined STATUSLEDRGB
@@ -642,7 +593,7 @@ void setup() {
 #endif
 
 #if defined LOWVOLTAGE
-  Serial.println(F("init lvm"));
+  Serial.println(F("init low voltage mode:"));
   Serial.print(F("  ex-"));
   Serial.print(shutdownMaxVoltage);
   Serial.print(F("V"));
@@ -666,7 +617,7 @@ void setup() {
 #endif
       Serial.println(F("init eeprom"));
       for (uint16_t i = 0; i < EEPROM.length(); i++) {
-        EEPROM.update(i, 0);
+        EEPROM.write(i, 0);
       }
       preferences(RESET);
       mp3.setVolume(playback.mp3CurrentVolume = preference.mp3StartVolume);
@@ -680,7 +631,7 @@ void setup() {
   }
 
   switchButtonConfiguration(PAUSE);
-  mp3.playMp3FolderTrack(800);
+  mp3.playMp3FolderTrack(800);  // Los gehts!
   Serial.println(F("ready"));
 }
 
@@ -692,8 +643,8 @@ void loop() {
 #if defined LOWVOLTAGE
   // if low voltage level is reached, store progress and shutdown
   if (shutdownVoltage.Read_Volts() <= shutdownMinVoltage) {
-    if (playback.currentTag.mode == STORYBOOK) EEPROM.update(playback.currentTag.folder, playback.playList[playback.playListItem - 1]);
-    mp3.playMp3FolderTrack(808);
+    if (playback.currentTag.mode == STORYBOOK) EEPROM.write(playback.currentTag.folder, playback.playList[playback.playListItem - 1]);
+    mp3.playMp3FolderTrack(808);  // Batterie leer
     waitPlaybackToFinish(255, 0, 0, 100);
     shutdownTimer(SHUTDOWN);
   }
@@ -718,18 +669,22 @@ void loop() {
   // ################################################################################
   // # main code block, if nfc tag is detected and TonUINO is not locked do something
   if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial() && !playback.isLocked) {
+    Serial.println("New RFID card detected");
     // if the current playback mode is story book mode, only while playing: store the current progress
     if (playback.currentTag.mode == STORYBOOK && playback.isPlaying) {
       Serial.print(F("save "));
       printModeFolderTrack(true);
-      EEPROM.update(playback.currentTag.folder, playback.playList[playback.playListItem - 1]);
+      EEPROM.write(playback.currentTag.folder, playback.playList[playback.playListItem - 1]);
     }
+    // readNfcTagData() populates the playback.currentTag structure if read is successful
     uint8_t readNfcTagStatus = readNfcTagData();
     // ##############################
     // # nfc tag is successfully read
+    Serial.println("Card successfully read");
     if (readNfcTagStatus == 1) {
       // #############################################################################
       // # nfc tag has our magic cookie on it, use data from nfc tag to start playback
+      Serial.println("Magic cookie found");
       if (playback.currentTag.cookie == magicCookie) {
         switchButtonConfiguration(PLAY);
         shutdownTimer(STOP);
@@ -738,23 +693,20 @@ void loop() {
 
         // prepare boundaries for playback
         switch (playback.currentTag.mode) {
-          case STORY: {}
-          case ALBUM: {}
-          case PARTY: {}
-          case SINGLE: {}
+          case STORY:
+          case ALBUM:
+          case PARTY:
+          case SINGLE:
           case STORYBOOK: {
               playback.folderStartTrack = 1;
               playback.folderEndTrack = mp3.getFolderTrackCount(playback.currentTag.folder);
               break;
             }
-          case VSTORY: {}
-          case VALBUM: {}
+          case VSTORY:
+          case VALBUM:
           case VPARTY: {
               playback.folderStartTrack = playback.currentTag.multiPurposeData1;
               playback.folderEndTrack = playback.currentTag.multiPurposeData2;
-              break;
-            }
-          default: {
               break;
             }
         }
@@ -819,6 +771,7 @@ void loop() {
       // #####################################################################################
       // # nfc tag does not have our magic cookie on it, start setup to configure this nfc tag
       else if (playback.currentTag.cookie == 0) {
+        Serial.println("No magic cookie, setup new RFID card...");
         nfcTagStruct newTag;
         playback.playListMode = false;
 
@@ -831,16 +784,16 @@ void loop() {
         while (true) {
           Serial.println(F("setup tag"));
           Serial.println(F("folder"));
-          newTag.folder = prompt(99, 801, 0, 0, 0, true, false);
+          newTag.folder = prompt(99, 801, 0, 0, 0, true, false);  // 801 = Neue Karte erkannt
           if (newTag.folder == 0) {
-            mp3.playMp3FolderTrack(807);
+            mp3.playMp3FolderTrack(807);  // Karte konfigurieren abgebrochen.
             waitPlaybackToFinish(255, 0, 0, 100);
             break;
           }
           Serial.println(F("mode"));
           newTag.mode = prompt(8, 820, 820, 0, 0, false, false);
           if (newTag.mode == 0) {
-            mp3.playMp3FolderTrack(807);
+            mp3.playMp3FolderTrack(807);  // Karte konfigurieren abgebrochen.
             waitPlaybackToFinish(255, 0, 0, 100);
             break;
           }
@@ -849,7 +802,7 @@ void loop() {
             newTag.multiPurposeData1 = prompt(mp3.getFolderTrackCount(newTag.folder), 802, 0, 0, newTag.folder, true, false);
             newTag.multiPurposeData2 = 0;
             if (newTag.multiPurposeData1 == 0) {
-              mp3.playMp3FolderTrack(807);
+              mp3.playMp3FolderTrack(807);  // Karte konfigurieren abgebrochen.
               waitPlaybackToFinish(255, 0, 0, 100);
               break;
             }
@@ -858,7 +811,7 @@ void loop() {
             Serial.println(F("starttrack"));
             newTag.multiPurposeData1 = prompt(mp3.getFolderTrackCount(newTag.folder), 803, 0, 0, newTag.folder, true, false);
             if (newTag.multiPurposeData1 == 0) {
-              mp3.playMp3FolderTrack(807);
+              mp3.playMp3FolderTrack(807);  // Karte konfigurieren abgebrochen.
               waitPlaybackToFinish(255, 0, 0, 100);
               break;
             }
@@ -866,7 +819,7 @@ void loop() {
             newTag.multiPurposeData2 = prompt(mp3.getFolderTrackCount(newTag.folder), 804, 0, newTag.multiPurposeData1, newTag.folder, true, false);
             newTag.multiPurposeData2 = max(newTag.multiPurposeData1, newTag.multiPurposeData2);
             if (newTag.multiPurposeData2 == 0) {
-              mp3.playMp3FolderTrack(807);
+              mp3.playMp3FolderTrack(807);  // Karte konfigurieren abgebrochen.
               waitPlaybackToFinish(255, 0, 0, 100);
               break;
             }
@@ -885,7 +838,7 @@ void loop() {
                                    };
           uint8_t writeNfcTagStatus = writeNfcTagData(bytesToWrite, sizeof(bytesToWrite));
           if (writeNfcTagStatus == 1) {
-            mp3.playMp3FolderTrack(805);
+            mp3.playMp3FolderTrack(805);  // Ok, ich habe die Karte konfiguriert. Viel Spass damit.
             waitPlaybackToFinish(0, 255, 0, 100);
           }
           else {
@@ -941,7 +894,7 @@ void loop() {
       if (playback.currentTag.mode == STORYBOOK) {
         Serial.print(F("save "));
         printModeFolderTrack(true);
-        EEPROM.update(playback.currentTag.folder, playback.playList[playback.playListItem - 1]);
+        EEPROM.write(playback.currentTag.folder, playback.playList[playback.playListItem - 1]);
       }
     }
     else {
@@ -1006,7 +959,7 @@ void loop() {
     playback.playListItem = 1;
     Serial.print(F("reset "));
     printModeFolderTrack(true);
-    EEPROM.update(playback.currentTag.folder, 0);
+    EEPROM.write(playback.currentTag.folder, 0);
     mp3.playFolderTrack(playback.currentTag.folder, playback.playList[playback.playListItem - 1]);
 #if defined STATUSLED ^ defined STATUSLEDRGB
     statusLedUpdate(BURST8, 255, 0, 255, 0);
@@ -1268,6 +1221,7 @@ void waitPlaybackToFinish(uint8_t red, uint8_t green, uint8_t blue, uint16_t sta
     statusLedUpdate(BLINK, red, green, blue, statusLedUpdateInterval);
 #endif
     mp3.loop();
+    delay(10);
   }
 }
 
@@ -1370,7 +1324,7 @@ void playNextTrack(uint16_t globalTrack, bool directionForward, bool triggeredMa
           Serial.print(F("-stop"));
           if (playback.currentTag.mode == STORYBOOK) {
             Serial.print(F("-reset"));
-            EEPROM.update(playback.currentTag.folder, 0);
+            EEPROM.write(playback.currentTag.folder, 0);
           }
           Serial.println();
           mp3.stop();
@@ -1397,6 +1351,7 @@ void playNextTrack(uint16_t globalTrack, bool directionForward, bool triggeredMa
 
 // reads data from nfc tag
 uint8_t readNfcTagData() {
+  Serial.println("Read NFC Tag Data");
   uint8_t nfcTagReadBuffer[16] = {};
   uint8_t piccReadBuffer[18] = {};
   uint8_t piccReadBufferSize = sizeof(piccReadBuffer);
@@ -1412,7 +1367,7 @@ uint8_t readNfcTagData() {
     for (uint8_t i = 0; i < 6; i++) classicKey.keyByte[i] = 0xFF;
 
     // check if we can authenticate with classicKey
-    piccStatus = (MFRC522::StatusCode)mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, classicTrailerBlock, &classicKey, &mfrc522.uid);
+    piccStatus = (MFRC522::StatusCode)mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_B, classicTrailerBlock, &classicKey, &mfrc522.uid);
     if (piccStatus == MFRC522::STATUS_OK) {
       // read 16 bytes from nfc tag (by default sector 1 / block 4)
       piccStatus = (MFRC522::StatusCode)mfrc522.MIFARE_Read(classicBlock, piccReadBuffer, &piccReadBufferSize);
@@ -1505,20 +1460,26 @@ uint8_t readNfcTagData() {
 
 // writes data to nfc tag
 uint8_t writeNfcTagData(uint8_t nfcTagWriteBuffer[], uint8_t nfcTagWriteBufferSize) {
+  Serial.println("write NFC Tag Data");
   uint8_t piccWriteBuffer[16] = {};
   bool nfcTagWriteSuccess = false;
   MFRC522::StatusCode piccStatus;
   MFRC522::PICC_Type piccType = mfrc522.PICC_GetType(mfrc522.uid.sak);
 
+   Serial.print("piccType: ");
+   Serial.print(piccType);
+   Serial.print(" ");
+   
   // decide which code path to take depending on picc type
   if (piccType == MFRC522::PICC_TYPE_MIFARE_MINI || piccType ==  MFRC522::PICC_TYPE_MIFARE_1K || piccType == MFRC522::PICC_TYPE_MIFARE_4K) {
+    Serial.println("Mini, 1K, 4K");
     uint8_t classicBlock = 4;
     uint8_t classicTrailerBlock = 7;
     MFRC522::MIFARE_Key classicKey;
     for (uint8_t i = 0; i < 6; i++) classicKey.keyByte[i] = 0xFF;
 
     // check if we can authenticate with classicKey
-    piccStatus = (MFRC522::StatusCode)mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, classicTrailerBlock, &classicKey, &mfrc522.uid);
+    piccStatus = (MFRC522::StatusCode)mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_B, classicTrailerBlock, &classicKey, &mfrc522.uid);
     if (piccStatus == MFRC522::STATUS_OK) {
       // write 16 bytes to nfc tag (by default sector 1 / block 4)
       memcpy(piccWriteBuffer, nfcTagWriteBuffer, sizeof(piccWriteBuffer));
@@ -1529,6 +1490,7 @@ uint8_t writeNfcTagData(uint8_t nfcTagWriteBuffer[], uint8_t nfcTagWriteBufferSi
     else Serial.println(mfrc522.GetStatusCodeName(piccStatus));
   }
   else if (piccType == MFRC522::PICC_TYPE_MIFARE_UL) {
+    Serial.println("UL (ultralight)");
     uint8_t ultralightStartPage = 8;
     uint8_t ultralightACK[2] = {};
     MFRC522::MIFARE_Key ultralightKey;
@@ -1634,16 +1596,15 @@ void shutdownTimer(uint8_t timerAction) {
         statusLedUpdate(OFF, 0, 0, 0, 0);
 #endif
 #if defined POLOLUSWITCH
-        digitalWrite(shutdownPin, HIGH);
+//        digitalWrite(shutdownPin, HIGH);
 #else
-        digitalWrite(shutdownPin, LOW);
+//        digitalWrite(shutdownPin, LOW);
 #endif
         mfrc522.PCD_AntennaOff();
         mfrc522.PCD_SoftPowerDown();
         mp3.sleep();
-        set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+        ESP.deepSleep(0);
         cli();
-        sleep_mode();
         break;
       }
     default: {
@@ -1708,7 +1669,7 @@ void preferences(uint8_t preferenceAction) {
       }
     case RESET_PROGRESS: {
         Serial.println(F("reset progress"));
-        for (uint16_t i = 1; i < 100; i++) EEPROM.update(i, 0);
+        for (uint16_t i = 1; i < 100; i++) EEPROM.write(i, 0);
         break;
       }
     default: {
@@ -1721,6 +1682,23 @@ void preferences(uint8_t preferenceAction) {
 uint8_t prompt(uint8_t promptOptions, uint16_t promptHeading, uint16_t promptOffset, uint8_t promptCurrent, uint8_t promptFolder, bool promptPreview, bool promptChangeVolume) {
   uint8_t promptResult = promptCurrent;
 
+  Serial.print("prompt: ");
+  Serial.print("# Options: ");
+  Serial.print(promptOptions);
+  Serial.print(", Announcement: ");
+  Serial.print(promptHeading);
+  Serial.print(", Offset: ");
+  Serial.print(promptOffset);
+  Serial.print(", Current: ");
+  Serial.print(promptCurrent);
+  Serial.print(", Folder: ");
+  Serial.print(promptFolder);
+  Serial.print(", Preview: ");
+  Serial.print(promptPreview);
+  Serial.print(", Volume: ");
+  Serial.print(promptChangeVolume);
+  Serial.println(".");
+  
   mp3.playMp3FolderTrack(promptHeading);
   while (true) {
     playback.isPlaying = !digitalRead(mp3BusyPin);
@@ -1755,7 +1733,7 @@ uint8_t prompt(uint8_t promptOptions, uint16_t promptHeading, uint16_t promptOff
     }
     // button 1 (right) press or ir remote up: next folder, track number or option
     else if (inputEvent == B1P || inputEvent == IRU) {
-      promptResult = min(promptResult + 1, promptOptions);
+      promptResult = min<int>(promptResult + 1, promptOptions);
       Serial.println(promptResult);
       if (promptPreview) {
         if (promptFolder == 0) mp3.playFolderTrack(promptResult, 1);
@@ -1786,7 +1764,7 @@ uint8_t prompt(uint8_t promptOptions, uint16_t promptHeading, uint16_t promptOff
     }
     // button 1 (right) hold or ir remote right: jump 10 folders, tracks or options forward
     else if (inputEvent == B1H || inputEvent == B4P || inputEvent == IRR) {
-      promptResult = min(promptResult + 10, promptOptions);
+      promptResult = min<int>(promptResult + 10, promptOptions);
       Serial.println(promptResult);
       if (promptChangeVolume) mp3.setVolume(promptResult + promptOffset);
       mp3.playMp3FolderTrack(promptResult + promptOffset);

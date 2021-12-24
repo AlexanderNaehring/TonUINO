@@ -30,3 +30,9 @@ Temporary Items
 sd-card*
 __pycache__
 *.pyc
+
+# PlatformIO
+.pio/
+
+# VSCode
+.vscode/
