@@ -1,162 +1,3 @@
-/*
-  basic button actions:
-  =====================
-  B0: middle button / enter / play / pause
-  B1: right button / up / next
-  B2: left button / down / previous
-
-  During idle:
-  ------------
-  Hold B1 + B2 - Enter menu
-
-  During playback:
-  ----------------
-  Click B1: volume up
-  Click B2: volume down
-  Hold B0 for 5 seconds - Reset progress to track 1 (story book mode)
-  Hold B0 for 5 seconds - Single track repeat (all modes, except story book mode)
-  Hold B1 for 2 seconds - Skip to the next track ((v)album, (v)party and story book mode)
-  Hold B2 for 2 seconds - Skip to the previous track ((v)album, (v)party and story book mode)
-
-  In menu:
-  --------------------
-  Click B0 - Confirm selection
-  Click B1 - Next option
-  Click B2 - Previous option
-  Double click B0 - Announce current option
-  Hold B0 - Cancel parents menu or any submenu
-  Hold B1 - Jump 10 options forward
-  Hold B2 - Jump 10 options backwards
-
-  During nfc tag setup mode:
-  --------------------------
-  Click B0 - Confirm selection
-  Click B1 - Next folder, mode or track
-  Click B2 - Previous folder, mode or track
-  Click B3 - Jump 10 folders or tracks backwards
-  Click B4 - Jump 10 folders or tracks forward
-  Double click B0 - Announce current folder, mode or track number
-  Hold B0 for 2 seconds - Cancel nfc tag setup mode
-  Hold B1 for 2 seconds - Jump 10 folders or tracks forward
-  Hold B2 for 2 seconds - Jump 10 folders or tracks backwards
-
-  During power up:
-  ----------------
-  Hold B0 + B1 + B2 - Erase all eeprom contents (resets stored progress and preferences)
-
-  status led(s):
-  ==============
-
-  There are two options for a status led (which are mutually exclusive!):
-
-  1) Connect a vanilla led to pin 6 and uncomment the '#define STATUSLED' below.
-     TonUINO will signal various status information, for example:
-
-     - Pulse slowly when TonUINO is idle.
-     - Solid when TonUINO is playing a title.
-     - Blink every 500ms when interactive in menus etc.
-     - Blink every 100ms if the LOWVOLTAGE feature is active and the battery is low.
-     - Burst 4 times when TonUINO is locked and 8 times when unlocked.
-     - Burst 4 times when repeat is activated and 8 times when deactivated.
-
-     There are some more signals, they try to be intuitive. You'll see.
-
-  2) Connect one (or even several) ws281x rgb led(s) to pin 6 and uncomment
-     the '#define STATUSLEDRGB' below. TonUINO will signal various status information
-     in different patterns and colors, for example:
-
-     - Pulse slowly green when TonUINO is idle.
-     - Solid green when TonUINO is playing a title.
-     - Blink yellow every 500ms when interactive in menus etc.
-     - Blink red every 100ms if the LOWVOLTAGE feature is active and the battery is low.
-     - Burst 4 times red when TonUINO is locked and 8 times green when unlocked.
-     - Burst 4 times white when repeat is activated and 8 times white when deactivated.
-     - Burst 8 times magenta when the track in story book mode is reset to 1.
-
-     There are some more signals, they try to be intuitive. You'll see.
-
-  For the vanilla led basically any 5V led will do, just don't forget to put an appropriate
-  resistor in series. For the ws281x led(s) you have several options. Stripes, single
-  neo pixels etc. The author did test the fuctionality with an 'addressable Through-Hole 5mm RGB LED'
-  from Pololu [1]. Please make sure you put a capacitor of at least 10 uF between the ground
-  and power lines of the led and consider adding a 100 to 1k ohm resistor between pin 6
-  and the led's data in. In general make sure you have enough current available (especially if
-  you plan more than one led - each takes up to 60mA!) and don't source the current for the led(s)
-  from the arduino power rail! Consult your ws281x led vendors documentation for guidance!
-
-  The ammount of ws281x led(s) as well as the max brightness can be set in the configuration
-  section below. The defaults are: One led and 20% brightness.
-
-  [1] https://www.pololu.com/product/2535
-
-  cubiekid:
-  =========
-
-  If you happen to have a CubieKid case and the CubieKid circuit board, this firmware
-  supports both shutdown methods. The inactivity shutdown timer is enabled by default,
-  the shutdown due to low battery voltage (which can be configured in the shutdown
-  section below) can be enabled by uncommenting the '#define LOWVOLTAGE' below.
-
-  The CubieKid case as well as the CubieKid circuit board, have been designed and developed
-  by Jens Hackel aka DB3JHF and can be found here: https://www.thingiverse.com/thing:3148200
-
-  pololu switch:
-  ==============
-
-  If you want to use a pololu switch with this firmware the shutdown pin logic needs
-  to be flipped from HIGH (on) -> LOW (off) to LOW (on) -> HIGH (off). This can be done
-  by uncommenting the '#define POLOLUSWITCH' below.
-
-  data stored on the nfc tags:
-  ============================
-
-  On MIFARE Classic (Mini, 1K & 4K) tags:
-  ---------------------------------------
-
-  Up to 16 bytes of data are stored in sector 1 / block 4, of which the first 9 bytes
-  are currently in use:
-
-  13 37 B3 47 01 02 04 10 19 00 00 00 00 00 00 00
-  ----------- -- -- -- -- --
-       |      |  |  |  |  |
-       |      |  |  |  |  +- end track (0x01-0xFF - in vstory (0x06), valbum (0x07) and vparty (0x08) modes)
-       |      |  |  |  +- single/start track (0x01-0xFF - in single (0x04), vstory (0x06), valbum (0x07) and vparty (0x08) modes)
-       |      |  |  +- playback mode (0x01-0x08)
-       |      |  +- folder (0x01-0x63)
-       |      +- version (currently always 0x01)
-       +- magic cookie to recognize that a card belongs to TonUINO (by default 0x13 0x37 0xb3 0x47)
-
-  On MIFARE Ultralight / Ultralight C and NTAG213/215/216 tags:
-  -------------------------------------------------------------
-
-  Up to 16 bytes of data are stored in pages 8-11, of which the first 9 bytes
-  are currently in use:
-
-   8   13 37 B3 47 - magic cookie to recognize that a card belongs to TonUINO (by default 0x13 0x37 0xb3 0x47)
-   9   01 02 04 10 - version, folder, playback mode, single track / start strack
-  10   19 00 00 00 - end track
-  11   00 00 00 00
-
-  additional non standard libraries used in this firmware:
-  ========================================================
-
-  MFRC522.h - https://github.com/miguelbalboa/rfid
-  DFMiniMp3.h - https://github.com/Makuna/DFMiniMp3
-  AceButton.h - https://github.com/bxparks/AceButton
-  IRremote.h - https://github.com/z3t0/Arduino-IRremote
-  WS2812.h - https://github.com/cpldcpu/light_ws2812
-  Vcc.h - https://github.com/Yveaux/Arduino_Vcc
-*/
-
-// uncomment the below line to enable five button support
-// #define FIVEBUTTONS
-
-// uncomment the below line to enable ir remote support
-// #define IRREMOTE
-
-// uncomment the below line to enable pin code support
-// #define PINCODE
-
 // uncomment ONE OF THE BELOW TWO LINES to enable status led support
 // the first enables support for a vanilla led
 // the second enables support for ws281x led(s)
@@ -179,11 +20,6 @@
 #include <DFMiniMp3.h>
 #include <AceButton.h>
 using namespace ace_button;
-
-// include additional library if ir remote support is enabled
-#if defined IRREMOTE
-#include <IRremote.h>
-#endif
 
 // include additional library if ws281x status led support is enabled
 #if defined STATUSLED ^ defined STATUSLEDRGB
@@ -224,9 +60,6 @@ enum {OFF, SOLID, PULSE, BLINK, BURST2, BURST4, BURST8};
 const uint8_t mp3SerialRxPin = D2;                  // mp3 serial rx, wired to tx pin of DFPlayer Mini
 const uint8_t mp3SerialTxPin = D1;                  // mp3 serial tx, wired to rx pin of DFPlayer Mini
 const uint8_t mp3BusyPin = D0;                      // reports play state of DFPlayer Mini (LOW = playing)
-#if defined IRREMOTE
-const uint8_t irReceiverPin = 5;                    // pin used for the ir receiver
-#endif
 #if defined STATUSLED ^ defined STATUSLEDRGB
 const uint8_t statusLedPin = 6;                     // pin used for vanilla status led or ws281x status led(s)
 const uint8_t statusLedCount = 1;                   // number of ws281x status led(s)
@@ -242,10 +75,6 @@ const uint8_t button2Pin = 3;                       // left button 3 = RX
 // when using TX/RX for btn input, pins are pulled high and cannot be used for serial debug!
 // to prevent problems, do not use GPIO 1 (TX) for button input.
 
-#if defined FIVEBUTTONS
-const uint8_t button3Pin = ;                        // optional 4th button
-const uint8_t button4Pin = ;                        // optional 5th button
-#endif
 const uint16_t buttonClickDelay = 400;             // time during which a button press is still a click (in milliseconds)
 const uint16_t buttonShortLongPressDelay = 500;    // time after which a button press is considered a long press (in milliseconds)
 const uint16_t buttonLongLongPressDelay = 5000;     // longer long press delay for special cases, i.e. to trigger the parents menu (in milliseconds)
@@ -254,13 +83,6 @@ const uint32_t debugConsoleSpeed = 115200;          // speed for the debug conso
 // define magic cookie (by default 0x13 0x37 0xb3 0x47)
 const uint8_t magicCookieHex[4] = {0x13, 0x37, 0xb3, 0x47};
 
-#if defined PINCODE
-// define pin code, allowed enums for pinCode[]: B0P, B1P, B2P (plus B3P & B4P if FIVEBUTTONS is enabled)
-const uint8_t pinCode[] = {B0P, B2P, B1P, B0P};     // for example play/pause, vol-, vol+, play/pause
-const uint8_t pinCodeLength = sizeof(pinCode);
-const uint8_t pinCodeIrToButtonMapping[] = {B1P, B2P, B3P, B4P, NOP, IRM, B0P};
-const uint64_t enterPinCodeTimeout = 10000;         // time to enter the pin code (in milliseconds)
-#endif
 
 // default values for preferences
 const uint8_t preferenceVersion = 1;
@@ -269,25 +91,6 @@ const uint8_t mp3MaxVolumeDefault = 15;
 const uint8_t mp3MenuVolumeDefault = 10;
 const uint8_t mp3EqualizerDefault = 1;
 const uint8_t shutdownMinutesDefault = 10;
-const uint16_t irRemoteUserCodesDefault[7] = {};
-
-/*
-  define hard coded (sets of) code mappings for ir remotes.
-  one remote per line with the following order of codes for: up, down, left, right, center, menu, play/pause
-
-  when adding multiple remotes, the array needs to look like this (watch the 'commas'!):
-
-  const uint16_t irRemoteCodes[][7] = {
-    {...},
-    {...},
-    {...}
-  };
-*/
-const uint16_t irRemoteCodes[][7] = {
-  {0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000}   // example, replace 0x0000 with respective codes as per above
-};
-const uint8_t irRemoteCount = sizeof(irRemoteCodes) / 14;
-const uint8_t irRemoteCodeCount = sizeof(irRemoteCodes) / (2 * irRemoteCount);
 
 #if defined LOWVOLTAGE
 // define constants for shutdown feature
@@ -337,7 +140,6 @@ struct preferenceStruct {
   uint8_t mp3MenuVolume = 0;
   uint8_t mp3Equalizer = 0;
   uint8_t shutdownMinutes = 0;
-  uint16_t irRemoteUserCodes[7] = {};
 };
 
 // global variables
@@ -366,9 +168,6 @@ void shutdownTimer(uint8_t timerAction);
 void preferences(uint8_t preferenceAction);
 uint8_t prompt(uint8_t promptOptions, uint16_t promptHeading, uint16_t promptOffset, uint8_t promptCurrent, uint8_t promptFolder, bool promptPreview, bool promptChangeVolume);
 void parentsMenu();
-#if defined PINCODE
-bool enterPinCode();
-#endif
 #if defined STATUSLED ^ defined STATUSLEDRGB
 void statusLedUpdate(uint8_t statusLedAction, uint8_t red, uint8_t green, uint8_t blue, uint16_t statusLedUpdateInterval);
 void statusLedUpdateHal(uint8_t red, uint8_t green, uint8_t blue, int16_t brightness);
@@ -455,7 +254,7 @@ class Mp3Notify {
     }
 };
 
-SoftwareSerial mp3Serial(mp3SerialRxPin, mp3SerialTxPin);                     // create SoftwareSerial instance
+SoftwareSerial mp3Serial(mp3SerialRxPin, mp3SerialTxPin);                     // create DFPlayer SoftwareSerial
 MFRC522 mfrc522(nfcSlaveSelectPin, nfcResetPin);                              // create MFRC522 instance
 DFMiniMp3<SoftwareSerial, Mp3Notify> mp3(mp3Serial);                          // create DFMiniMp3 instance
 ButtonConfig button0Config;                                                   // create ButtonConfig instance
@@ -464,12 +263,6 @@ ButtonConfig button2Config;                                                   //
 AceButton button0(&button0Config);                                            // create AceButton instance
 AceButton button1(&button1Config);                                            // create AceButton instance
 AceButton button2(&button2Config);                                            // create AceButton instance
-#if defined FIVEBUTTONS
-ButtonConfig button3Config;                                                   // create ButtonConfig instance
-ButtonConfig button4Config;                                                   // create ButtonConfig instance
-AceButton button3(&button3Config);                                            // create AceButton instance
-AceButton button4(&button4Config);                                            // create AceButton instance
-#endif
 
 #if defined STATUSLED ^ defined STATUSLEDRGB
 #if defined STATUSLEDRGB
@@ -555,16 +348,7 @@ void setup() {
   button0.init(button0Pin, HIGH, 0);
   button1.init(button1Pin, HIGH, 1);
   button2.init(button2Pin, HIGH, 2);
-#if defined FIVEBUTTONS
-  pinMode(button3Pin, INPUT_PULLUP);
-  pinMode(button4Pin, INPUT_PULLUP);
-  button3.init(button3Pin, HIGH, 3);
-  button4.init(button4Pin, HIGH, 4);
-  Serial.print(F(" 5"));
-#else
-  Serial.print(F(" 3"));
-#endif
-  Serial.println(F(" buttons"));
+  Serial.println(F(" 3 buttons"));
   switchButtonConfiguration(INIT);
 
   Serial.print(F("init shutdown: "));
@@ -572,10 +356,6 @@ void setup() {
   Serial.println(F("m timer"));
   shutdownTimer(START);
 
-#if defined IRREMOTE
-  Serial.println(F("init ir"));
-  IrReceiver.begin(irReceiverPin, DISABLE_LED_FEEDBACK);
-#endif
 
 #if defined STATUSLED ^ defined STATUSLEDRGB
 #if defined STATUSLED
@@ -612,9 +392,6 @@ void setup() {
 
   // hold down all three buttons while powering up: erase the eeprom contents
   if (button0.isPressedRaw() && button1.isPressedRaw() && button2.isPressedRaw()) {
-#if defined PINCODE
-    if (enterPinCode()) {
-#endif
       Serial.println(F("init eeprom"));
       for (uint16_t i = 0; i < EEPROM.length(); i++) {
         EEPROM.write(i, 0);
@@ -625,9 +402,6 @@ void setup() {
       shutdownTimer(START);
       mp3.playMp3FolderTrack(809);
       waitPlaybackToFinish(0, 255, 0, 100);
-#if defined PINCODE
-    }
-#endif
   }
 
   switchButtonConfiguration(PAUSE);
@@ -989,42 +763,6 @@ void checkForInput() {
   button0.check();
   button1.check();
   button2.check();
-#if defined FIVEBUTTONS
-  button3.check();
-  button4.check();
-#endif
-
-#if defined IRREMOTE
-  uint8_t irRemoteEvent = NOP;
-  uint16_t irRemoteCode = 0;
-  static uint64_t irRemoteOldMillis;
-
-  // poll ir receiver, has precedence over (overwrites) physical buttons
-  if (IrReceiver.decode()) {
-    // process only codes which don't have the repeat flag set
-    if (!(IrReceiver.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT)) {
-      irRemoteCode = IrReceiver.decodedIRData.command;
-      for (uint8_t i = 0; i < irRemoteCount; i++) {
-        for (uint8_t j = 0; j < irRemoteCodeCount; j++) {
-          //if we have a match, temporally populate irRemoteEvent and break
-          if (irRemoteCode == irRemoteCodes[i][j] || irRemoteCode == preference.irRemoteUserCodes[j]) {
-            // 16 is used as an offset in the button action enum list - 17 is the first ir action
-            irRemoteEvent = 16 + j;
-            break;
-          }
-        }
-        // if the inner loop had a match, populate inputEvent and break
-        // ir remote key presses are debounced by 250ms
-        if (millis() - irRemoteOldMillis >= 250) {
-          irRemoteOldMillis = millis();
-          inputEvent = irRemoteEvent;
-          break;
-        }
-      }
-    }
-    IrReceiver.resume();
-  }
-#endif
 }
 
 // translates the various button events into enums and populates the global inputEvent variable
@@ -1085,34 +823,6 @@ void translateButtonInput(AceButton *button, uint8_t eventType, uint8_t /* butto
         }
         break;
       }
-#if defined FIVEBUTTONS
-    // optional 4th button
-    case 3: {
-        switch (eventType) {
-          case AceButton::kEventClicked: {
-              inputEvent = B3P;
-              break;
-            }
-          default: {
-              break;
-            }
-        }
-        break;
-      }
-    // optional 5th button
-    case 4: {
-        switch (eventType) {
-          case AceButton::kEventClicked: {
-              inputEvent = B4P;
-              break;
-            }
-          default: {
-              break;
-            }
-        }
-        break;
-      }
-#endif
     default: {
         break;
       }
@@ -1136,35 +846,17 @@ void switchButtonConfiguration(uint8_t buttonMode) {
         button1Config.setFeature(ButtonConfig::kFeatureClick);
         button1Config.setFeature(ButtonConfig::kFeatureSuppressAfterClick);
         button1Config.setClickDelay(buttonClickDelay);
-#if not defined FIVEBUTTONS
-        // only enable long press on button 1 (right) when in 3 button mode
         button1Config.setFeature(ButtonConfig::kFeatureLongPress);
         button1Config.setFeature(ButtonConfig::kFeatureSuppressAfterLongPress);
         button1Config.setLongPressDelay(buttonShortLongPressDelay);
-#endif
         // button 2 (left)
         button2Config.setEventHandler(translateButtonInput);
         button2Config.setFeature(ButtonConfig::kFeatureClick);
         button2Config.setFeature(ButtonConfig::kFeatureSuppressAfterClick);
         button2Config.setClickDelay(buttonClickDelay);
-#if not defined FIVEBUTTONS
-        // only enable long press on button 2 (left) when in 3 button mode
         button2Config.setFeature(ButtonConfig::kFeatureLongPress);
         button2Config.setFeature(ButtonConfig::kFeatureSuppressAfterLongPress);
         button2Config.setLongPressDelay(buttonShortLongPressDelay);
-#endif
-#if defined FIVEBUTTONS
-        // optional 4th button
-        button3Config.setEventHandler(translateButtonInput);
-        button3Config.setFeature(ButtonConfig::kFeatureClick);
-        button3Config.setFeature(ButtonConfig::kFeatureSuppressAfterClick);
-        button3Config.setClickDelay(buttonClickDelay);
-        // optional 5th button
-        button4Config.setEventHandler(translateButtonInput);
-        button4Config.setFeature(ButtonConfig::kFeatureClick);
-        button4Config.setFeature(ButtonConfig::kFeatureSuppressAfterClick);
-        button4Config.setClickDelay(buttonClickDelay);
-#endif
         break;
       }
     case PLAY: {
@@ -1663,7 +1355,6 @@ void preferences(uint8_t preferenceAction) {
         preference.mp3MenuVolume = mp3MenuVolumeDefault;
         preference.mp3Equalizer = mp3EqualizerDefault;
         preference.shutdownMinutes = shutdownMinutesDefault;
-        memcpy(preference.irRemoteUserCodes, irRemoteUserCodesDefault, 14);
         preferences(WRITE);
         break;
       }
@@ -1785,10 +1476,6 @@ uint8_t prompt(uint8_t promptOptions, uint16_t promptHeading, uint16_t promptOff
 
 // parents menu, offers various settings only parents do
 void parentsMenu() {
-#if defined PINCODE
-  if (!enterPinCode()) return;
-#endif
-
   playback.playListMode = false;
 
   // set volume to menu volume
@@ -1892,48 +1579,8 @@ void parentsMenu() {
     }
     // learn ir remote
     else if (selectedOption == 6) {
-#if defined IRREMOTE
-      Serial.println(F("learn remote"));
-      for (uint8_t i = 0; i < 7; i++) {
-        mp3.playMp3FolderTrack(951 + i);
-        waitPlaybackToFinish(0, 0, 255, 500);
-        // clear ir receive buffer
-        IrReceiver.resume();
-        // wait for ir signal
-        while (!IrReceiver.decode()) {
-#if defined STATUSLED ^ defined STATUSLEDRGB
-          statusLedUpdate(BLINK, 0, 0, 255, 300);
-#endif
-        }
-        // process only codes which don't have the repeat flag set
-        if (!(IrReceiver.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT)) {
-          uint16_t irRemoteCode = IrReceiver.decodedIRData.command;
-          Serial.print(F("ir code: 0x"));
-          Serial.print(irRemoteCode <= 0x0010 ? "0" : "");
-          Serial.print(irRemoteCode <= 0x0100 ? "0" : "");
-          Serial.print(irRemoteCode <= 0x1000 ? "0" : "");
-          Serial.println(irRemoteCode, HEX);
-          preference.irRemoteUserCodes[i] = irRemoteCode;
-#if defined STATUSLED ^ defined STATUSLEDRGB
-          statusLedUpdate(BURST4, 0, 255, 0, 0);
-#endif
-        }
-        // key was held down, repeat last question
-        else {
-          i--;
-#if defined STATUSLED ^ defined STATUSLEDRGB
-          statusLedUpdate(BURST4, 255, 0, 0, 0);
-#endif
-        }
-        mp3.loop();
-      }
-      preferences(WRITE);
-      mp3.playMp3FolderTrack(901);
-      waitPlaybackToFinish(0, 255, 0, 100);
-#else
       mp3.playMp3FolderTrack(950);
       waitPlaybackToFinish(255, 0, 0, 100);
-#endif
     }
     // shutdown timer
     else if (selectedOption == 7) {
@@ -2007,79 +1654,6 @@ void parentsMenu() {
   shutdownTimer(START);
   inputEvent = NOP;
 }
-
-#if defined PINCODE
-// requests pin code from user via buttons or ir remote
-bool enterPinCode() {
-  uint8_t pinCodeEntered[pinCodeLength];
-  uint8_t pinCodeSlot = 0;
-  uint64_t cancelEnterPinCodeMillis = millis() + enterPinCodeTimeout;
-  bool pinCodeMatch = true;
-  playback.playListMode = false;
-
-  // set volume to menu volume
-  mp3.setVolume(preference.mp3MenuVolume);
-
-  switchButtonConfiguration(PIN);
-  shutdownTimer(STOP);
-
-  Serial.println(F("pin?"));
-  mp3.playMp3FolderTrack(810);
-  while (true) {
-    checkForInput();
-    // map ir inputs to corresponding button inputs
-    if (inputEvent >= 16) inputEvent = pinCodeIrToButtonMapping[inputEvent - 16];
-    // button 0 (middle) hold for 2 sec or ir remote menu: cancel
-    if (inputEvent == B0H || inputEvent == IRM || millis() > cancelEnterPinCodeMillis) {
-      Serial.println(F("cancel"));
-      mp3.playMp3FolderTrack(811);
-      waitPlaybackToFinish(255, 0, 0, 100);
-
-      // restore playback volume, can't be higher than maximum volume
-      mp3.setVolume(playback.mp3CurrentVolume = min(playback.mp3CurrentVolume, preference.mp3MaxVolume));
-
-      switchButtonConfiguration(PAUSE);
-      shutdownTimer(START);
-      inputEvent = NOP;
-
-      return false;
-    }
-    // record inputs
-    if (inputEvent != NOP) pinCodeEntered[pinCodeSlot++] = inputEvent;
-    // if the complete pin code has been recorded
-    if (pinCodeSlot == pinCodeLength) {
-      // compare entered with stored pin code
-      for (uint8_t i = 0; i < pinCodeLength; i++) if (pinCode[i] != pinCodeEntered[i]) pinCodeMatch = false;
-      // we have a match, exit
-      if (pinCodeMatch) {
-        // restore playback volume, can't be higher than maximum volume
-        mp3.setVolume(playback.mp3CurrentVolume = min(playback.mp3CurrentVolume, preference.mp3MaxVolume));
-
-        switchButtonConfiguration(PAUSE);
-        shutdownTimer(START);
-        inputEvent = NOP;
-
-        return true;
-      }
-      // we don't have a match, repeat
-      else {
-        Serial.println(F("pin?"));
-        mp3.playMp3FolderTrack(810);
-        cancelEnterPinCodeMillis = millis() + enterPinCodeTimeout;
-        pinCodeSlot = 0;
-        pinCodeMatch = true;
-#if defined STATUSLED ^ defined STATUSLEDRGB
-        statusLedUpdate(BURST4, 255, 0, 0, 0);
-#endif
-      }
-    }
-#if defined STATUSLED ^ defined STATUSLEDRGB
-    statusLedUpdate(BLINK, 255, 255, 0, 500);
-#endif
-    mp3.loop();
-  }
-}
-#endif
 
 #if defined STATUSLED ^ defined STATUSLEDRGB
 // updates status led(s) with various pulse, blink or burst patterns
